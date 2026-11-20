@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="no">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TrasMaTech kabin XR</title>
+  <style>
+    :root { --panel: rgba(11, 16, 30, .84); --kant: rgba(255, 255, 255, .1); --tekst: #e8ecf3; --dempet: #9aa6bd; --blaa: #1f5be0; }
+    html, body { margin: 0; height: 100%; background: #0b0d12; overflow: hidden; font-family: system-ui, sans-serif; color: var(--tekst); }
+    canvas { display: block; }
+    #status {
+      position: fixed; left: 12px; top: 12px; padding: 6px 10px; border-radius: 8px;
+      background: var(--panel); font-size: 13px; pointer-events: none; border: 1px solid var(--kant);
+    }
+    /* Infokortet (samme tegning som tavla i VR). */
+    #info { position: fixed; right: 12px; top: 12px; width: min(340px, 40vw); border-radius: 10px; overflow: hidden; border: 1px solid var(--kant); box-shadow: 0 6px 24px rgba(0,0,0,.4); }
+    #info canvas { width: 100%; height: auto; }
+    /* Verktøylinja nederst. */
+    #verktoy {
+      position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); display: flex; gap: 2px; flex-wrap: nowrap; justify-content: center; overflow-x: auto; scrollbar-width: none;
+      padding: 6px; border-radius: 12px; background: var(--panel); border: 1px solid var(--kant); max-width: calc(100vw - 24px); box-sizing: border-box;
+    }
+    #verktoy button, #folger button {
+      font: inherit; font-size: 14px; color: var(--tekst); background: transparent; border: 0; border-radius: 8px; padding: 8px 12px; cursor: pointer; white-space: nowrap;
+    }
+    #verktoy button:hover { background: rgba(255,255,255,.08); }
+    #verktoy button.aktiv { background: var(--blaa); }
+    #verktoy kbd { font-size: 11px; color: var(--dempet); margin-left: 4px; }
+    @media (max-width: 1800px) { #verktoy kbd { display: none; } #verktoy button { padding: 8px 9px; } }
+    #lys-niva { width: 80px; display: none; accent-color: #ffd36b; align-self: center; }
+    body.lys-manuell #lys-niva { display: block; }
+    #lyd-volum { width: 80px; display: none; accent-color: #1f5be0; align-self: center; }
+    body.lyd-paa #lyd-volum { display: block; }
+    #verktoy .skille { width: 1px; background: var(--kant); margin: 4px 2px; }
+    /* «Følger …»-merket. */
+    #folger { position: fixed; left: 50%; bottom: 76px; transform: translateX(-50%); display: none; align-items: center; gap: 6px;
+      padding: 4px 4px 4px 14px; border-radius: 999px; background: var(--blaa); font-size: 14px; }
+    #folger button { padding: 4px 10px; background: rgba(0,0,0,.25); border-radius: 999px; }
+    /* Passasjerlista. */
+    #liste { position: fixed; left: 12px; top: 56px; bottom: 80px; width: min(300px, 40vw); display: none; flex-direction: column;
+      border-radius: 10px; background: var(--panel); border: 1px solid var(--kant); overflow: hidden; }
+    #liste.apen { display: flex; }
+    #liste h2 { margin: 0; padding: 10px 12px; font-size: 14px; border-bottom: 1px solid var(--kant); }
+    #liste ul { list-style: none; margin: 0; padding: 4px; overflow: auto; }
+    #liste li { padding: 7px 8px; border-radius: 8px; cursor: pointer; display: grid; grid-template-columns: 38px 1fr; gap: 2px 8px; }
+    #liste li:hover { background: rgba(255,255,255,.07); }
+    #liste li.valgt { background: rgba(31,91,224,.45); }
+    #liste .sete { grid-row: span 2; font-weight: 700; color: var(--dempet); font-size: 13px; align-self: center; }
+    #liste .navn { font-weight: 600; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #liste .hva { font-size: 12px; color: var(--dempet); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #liste .tom { padding: 12px; color: var(--dempet); font-size: 13px; }
+    /* Streamen fra Twitch ved siden av infokortet (Twitch krever minst 400 × 300). */
+    #stream { position: fixed; top: 12px; right: calc(min(340px, 40vw) + 24px); width: 400px; height: 324px; min-width: 400px; min-height: 324px; resize: both; border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--kant); box-shadow: 0 6px 24px rgba(0,0,0,.4); background: #000; display: none; }
+    #stream iframe, #chat iframe { width: 100%; height: 100%; border: 0; display: block; }
+    #stream.apen, #chat.apen { display: flex; flex-direction: column; }
+    .handtak { height: 24px; flex: none; display: flex; align-items: center; justify-content: space-between; padding: 0 4px 0 10px;
+      font-size: 12px; color: var(--dempet); background: rgba(11,16,30,.95); cursor: move; user-select: none; touch-action: none; }
+    .handtak button { font: inherit; color: var(--dempet); background: none; border: 0; cursor: pointer; padding: 2px 6px; border-radius: 6px; }
+    .handtak button:hover { background: rgba(255,255,255,.1); color: var(--tekst); }
+    .innhold { flex: 1; min-height: 0; position: relative; }
+    .innhold iframe { position: absolute; inset: 0; }
+    body.drar-rute iframe { pointer-events: none; }
+    /* Twitch-chatten i høyre kolonne, under flyinfoen. */
+    #chat { position: fixed; right: 12px; top: 232px; bottom: 76px; width: min(340px, 40vw); min-width: 300px; min-height: 420px; resize: both; border-radius: 10px; overflow: hidden;
+      border: 1px solid var(--kant); background: #18181b; display: none; }
+    body:has(#liste.apen) #hjelp { display: none; }
+    #hjelp { position: fixed; left: 12px; bottom: 14px; font-size: 12px; color: var(--dempet); max-width: 260px; line-height: 1.4; pointer-events: none; }
+    #ARButton { left: auto !important; right: 150px !important; bottom: 14px !important; width: auto !important; padding: 10px 14px !important; }
+    #VRButton { left: auto !important; right: 12px !important; bottom: 14px !important; width: auto !important; padding: 10px 14px !important; }
+    @media (max-width: 1000px) { #stream { top: auto; bottom: 76px; right: 12px; } #chat { top: auto; height: 45vh; } }
+    @media (max-width: 700px) { #info { width: 46vw; } #liste { top: auto; height: 40vh; width: calc(100vw - 24px); } #hjelp { display: none; } }
+  </style>
+</head>
+<body>
+  <div id="status">Kobler til …</div>
+  <div id="info"></div>
+  <div id="stream" aria-label="Streamen på Twitch"></div>
+  <div id="chat" aria-label="Chatten på Twitch"></div>
+  <aside id="liste" aria-label="Passasjerer"><h2>Om bord</h2><ul></ul></aside>
+  <div id="folger"><span></span><button type="button" id="folger-vinkel" title="Bytt vinkel (V)">🎥 Bak</button><button type="button" id="folger-slipp" title="Slutt å følge (Esc)">✕</button></div>
+  <nav id="verktoy" aria-label="Visninger">
+    <button data-vis="oversikt">Oversikt<kbd>1</kbd></button>
+    <button data-vis="cockpit">Cockpit<kbd>2</kbd></button>
+    <button data-vis="foran">Foran<kbd>3</kbd></button>
+    <button data-vis="midten">Midten<kbd>4</kbd></button>
+    <button data-vis="bak">Bak<kbd>5</kbd></button>
+    <button data-vis="lasterom">Lasterom<kbd>6</kbd></button>
+    <span class="skille"></span>
+    <button id="knapp-lys" title="Kabinlyset: automatisk eller styrt selv (B)">💡 Auto<kbd>B</kbd></button>
+    <input id="lys-niva" type="range" min="20" max="100" value="75" aria-label="Kabinlys i prosent" title="Kabinlys">
+    <button id="knapp-tid" title="Dag, kveld eller natt (N)">🌗 Auto<kbd>N</kbd></button>
+    <button id="knapp-stream" title="Vis streamen (T)">📺 Stream<kbd>T</kbd></button>
+ <button id="knapp-lyd" title="Kabinlyden fra nettsiden, i 3D (L)">🔈 Lyd<kbd>L</kbd></button>
+    <input id="lyd-volum" type="range" min="0" max="100" value="80" aria-label="Volum på kabinlyden" title="Volum">
+    <button id="knapp-chat" title="Vis chatten (C)">💬 Chat<kbd>C</kbd></button>
+    <button id="knapp-liste">👥 Passasjerer<kbd>P</kbd></button>
+    <button id="knapp-fullskjerm" title="Fullskjerm (F)">⛶<kbd>F</kbd></button>
+  </nav>
+  <div id="hjelp">Dra for å se rundt · høyreklikk-dra eller WASD for å flytte · rull for å zoome · klikk på en passasjer for å følge</div>
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>
