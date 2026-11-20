@@ -454,7 +454,7 @@ export class Folk {
       const [kode, tekst] = status(p, naa, d.belte);
       let maal;
       if (doMaal.has(p.sete)) maal = doMaal.get(p.sete);
-      else if (p.akt === 'strekk' && !p.jumpseat) maal = { x: aisle + (s.x < aisle ? -0.05 : 0.05), z: s.z + 0.15, ry: s.x < aisle ? -Math.PI / 2 : Math.PI / 2, sitt: false };
+      else if (p.akt === 'strekk' && !p.jumpseat) maal = { x: aisle, z: s.z, ry: 0, sitt: false, strekk: true };
       else if (p.borte && !p.jumpseat) maal = { x: aisle + 0.25, z: L.zBak - 1.4, ry: Math.PI, sitt: false }; // en tur bak (kurven)
       else maal = { x: s.x, z: s.z, ry: s.ry, sitt: true };
 
@@ -689,6 +689,15 @@ export class Folk {
         const steg = GANG * dt;
         if (l <= steg) { f.pos.copy(neste); f.sti.shift(); } else { f.pos.addScaledVector(d, steg / l); }
         if (l > 0.001) f.ry = Math.atan2(-d.x, -d.y);
+        gaar = true;
+        f.strekkT = undefined;
+      } else if (f.maal?.strekk) {
+        // !strekk: går rolig fram og tilbake i midtgangen rundt sin egen rad (som på nettsiden).
+        f.strekkT = (f.strekkT ?? 0) + dt; // starter der figuren står (sin(0) = 0), ingen hopp
+        const ny = f.maal.z + Math.sin(f.strekkT * 0.28) * 2.4;
+        const dz = ny - f.pos.y;
+        f.pos.set(f.maal.x, ny);
+        if (Math.abs(dz) > 1e-4) f.ry = dz < 0 ? 0 : Math.PI; // ansiktet i gangretningen (fram = -z)
         gaar = true;
       } else if (f.maal) {
         f.ry = f.maal.ry;
