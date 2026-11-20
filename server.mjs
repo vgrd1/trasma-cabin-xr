@@ -205,7 +205,12 @@ async function svar(req, res) {
   res.end(req.method === 'HEAD' ? undefined : gz ? f.gz : f.data);
 }
 
-const handler = (req, res) => svar(req, res).catch(() => { if (!res.headersSent) res.writeHead(500); res.end(); });
+// BARE_LOKALT=1: bare hjemmenettet og Tailscale slipper inn; alt utenfra (via port-videresending) avvises.
+const BARE_LOKALT = process.env.BARE_LOKALT === '1';
+const handler = (req, res) => {
+  if (BARE_LOKALT && !lokal(req)) { res.writeHead(403, { 'content-type': 'text/plain; charset=utf-8' }); return res.end('Ikke tilgjengelig utenfra.'); }
+  return svar(req, res).catch(() => { if (!res.headersSent) res.writeHead(500); res.end(); });
+};
 const { TLS_CERT, TLS_KEY } = process.env;
 const server = TLS_CERT && TLS_KEY
   ? https.createServer({ cert: readFileSync(TLS_CERT), key: readFileSync(TLS_KEY) }, handler)
